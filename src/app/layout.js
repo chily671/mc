@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "Luyện tập biên tập",
   description:
-    "Ứng dụng luyện tập biên tập dành cho các bạn đang tập trở thành MC",
+    "Website luyện tập biên tập dành cho các bạn đang có mong muốn trở thành MC",
 };
 
 export default function RootLayout({ children }) {
