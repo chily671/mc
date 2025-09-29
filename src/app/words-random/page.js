@@ -21,9 +21,9 @@ export default function WordsRandomPage() {
   const [currentWord, setCurrentWord] = useState(null);
   const [finished, setFinished] = useState(false);
 
-  const [mode, setMode] = useState("preset"); // preset | custom
-  const [time, setTime] = useState(30); // default preset
-  const [customTime, setCustomTime] = useState("");
+  const [mode, setMode] = useState("1"); // "1" = 1 từ, "2" = 2 từ
+
+  const [time, setTime] = useState(30);
   const [timer, setTimer] = useState(0);
   const [running, setRunning] = useState(false);
 
@@ -61,17 +61,31 @@ export default function WordsRandomPage() {
     stopTraining();
   }, [category, words]);
 
-  // Random 1 từ
+  // Random theo mode
   const randomWord = () => {
-    if (pool.length === 0) {
+    if (pool.length === 0 || (mode === "2" && pool.length < 2)) {
       setFinished(true);
       setCurrentWord(null);
       return;
     }
-    const index = Math.floor(Math.random() * pool.length);
-    const selected = pool[index];
-    setCurrentWord(selected);
-    setPool(pool.filter((_, i) => i !== index));
+
+    if (mode === "1") {
+      const index = Math.floor(Math.random() * pool.length);
+      const selected = pool[index];
+      setCurrentWord([selected]);
+      setPool(pool.filter((_, i) => i !== index));
+    } else {
+      // random 2 từ khác nhau
+      const index1 = Math.floor(Math.random() * pool.length);
+      let index2 = Math.floor(Math.random() * pool.length);
+      while (index2 === index1) {
+        index2 = Math.floor(Math.random() * pool.length);
+      }
+
+      const selected = [pool[index1], pool[index2]];
+      setCurrentWord(selected);
+      setPool(pool.filter((_, i) => i !== index1 && i !== index2));
+    }
   };
 
   // Start luyện tập
@@ -81,15 +95,9 @@ export default function WordsRandomPage() {
       return;
     }
 
-    const duration = mode === "custom" ? Number(customTime) : time;
-    if (!duration || duration <= 0) {
-      toast.error("Vui lòng nhập thời gian hợp lệ");
-      return;
-    }
-
     setRunning(true);
     randomWord();
-    setTimer(duration);
+    setTimer(time);
 
     if (timerRef.current) clearInterval(timerRef.current);
 
@@ -98,7 +106,7 @@ export default function WordsRandomPage() {
         if (prev <= 1) {
           if (pool.length > 0) {
             randomWord();
-            return duration;
+            return time;
           } else {
             setFinished(true);
             clearInterval(timerRef.current);
@@ -136,18 +144,27 @@ export default function WordsRandomPage() {
         </SelectContent>
       </Select>
 
+      {/* Chọn chế độ 1 hay 2 từ */}
+      <Select
+        value={mode}
+        onValueChange={setMode}
+        disabled={running}
+        className="mb-4"
+      >
+        <SelectTrigger className="w-full mb-4">
+          <SelectValue placeholder="Chọn số từ" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="1">1 từ</SelectItem>
+          <SelectItem value="2">2 từ</SelectItem>
+        </SelectContent>
+      </Select>
+
       {/* Chọn thời gian */}
       <div className="flex gap-2 mb-4">
         <Select
-          value={mode === "preset" ? String(time) : "custom"}
-          onValueChange={(val) => {
-            if (val === "custom") {
-              setMode("custom");
-            } else {
-              setMode("preset");
-              setTime(Number(val));
-            }
-          }}
+          onValueChange={(val) => setTime(Number(val))}
+          defaultValue="30"
           disabled={running}
         >
           <SelectTrigger className="w-32">
@@ -157,36 +174,22 @@ export default function WordsRandomPage() {
             <SelectItem value="30">30 giây</SelectItem>
             <SelectItem value="60">1 phút</SelectItem>
             <SelectItem value="120">2 phút</SelectItem>
-            <SelectItem value="custom">Custom</SelectItem>
           </SelectContent>
         </Select>
-
-        {mode === "custom" && (
-          <Input
-            type="number"
-            placeholder="Custom (giây)"
-            value={customTime}
-            onChange={(e) => setCustomTime(e.target.value)}
-            disabled={running}
-          />
-        )}
+        <Input
+          type="number"
+          placeholder="Custom (giây)"
+          value={time}
+          onChange={(e) => setTime(Number(e.target.value))}
+          disabled={running}
+        />
       </div>
 
       {/* Nút điều khiển */}
       {!running ? (
-        <div className="flex gap-2 mb-6">
-          <Button onClick={startTraining} className="flex-1">
-            {finished ? "Bắt đầu lại" : "Bắt đầu"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={randomWord}
-            className="flex-1"
-            disabled={pool.length === 0}
-          >
-            Random từ mới
-          </Button>
-        </div>
+        <Button onClick={startTraining} className="w-full mb-6">
+          {finished ? "Bắt đầu lại" : "Bắt đầu"}
+        </Button>
       ) : (
         <Button
           onClick={stopTraining}
@@ -207,9 +210,13 @@ export default function WordsRandomPage() {
       {/* Kết quả */}
       {currentWord && (
         <Card className="shadow-lg">
-          <CardContent className="p-6 text-center">
-            <h2 className="text-xl font-semibold">{currentWord.word}</h2>
-            <p className="text-sm text-gray-500 mt-2">{currentWord.category}</p>
+          <CardContent className="p-6 text-center space-y-2">
+            {currentWord.map((w) => (
+              <div key={w._id}>
+                <h2 className="text-xl font-semibold">{w.word}</h2>
+                <p className="text-sm text-gray-500">{w.category}</p>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
