@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 
 export default function AdminTable({ title, placeholder, api }) {
   const [items, setItems] = useState([]);
-  console.log("🚀 ~ AdminTable ~ items:", items)
   const [input, setInput] = useState("");
 
   // Load data

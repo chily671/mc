@@ -4,6 +4,7 @@ export default function Dashboard() {
   const menu = [
     { href: "/words-random", label: "🗣️ Luyện tập từ" },
     { href: "/word-frames", label: "📚 Sổ tay từ vựng" },
+    { href: "/title", label: "📝 Chủ đề và hướng tiếp cận" },
   ];
 
   return (
