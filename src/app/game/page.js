@@ -191,16 +191,18 @@ export default function GamePage() {
   // 💥 Game ended UI
   if (revealData) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-90 text-white flex flex-col items-center justify-center z-50 p-6">
-        <h1 className="text-3xl font-bold mb-6">🎭 Kết thúc ván chơi!</h1>
+      <div className="fixed inset-0 bg-gradient-to-br from-purple-900 via-pink-900 to-red-900 text-white flex flex-col items-center justify-center z-50 p-6">
+        <h1 className="text-4xl font-extrabold mb-6 animate-pulse">
+          🎭 Kết thúc ván chơi!
+        </h1>
         <ul className="space-y-3 max-w-md w-full">
           {revealData.map((p, i) => (
             <li
               key={i}
-              className="flex justify-between p-3 rounded bg-white/10 border border-white/20"
+              className="flex justify-between p-4 rounded-xl bg-white/20 border border-white/30 backdrop-blur-md shadow-md"
             >
-              <span>{p.name}</span>
-              <span>
+              <span className="font-semibold">{p.name}</span>
+              <span className="font-medium">
                 {p.role === "whiteHat"
                   ? "🕵️ Mũ trắng"
                   : p.role === "spy"
@@ -211,7 +213,7 @@ export default function GamePage() {
             </li>
           ))}
         </ul>
-        <p className="mt-6 text-gray-300 text-sm italic">
+        <p className="mt-6 text-gray-300 text-sm italic animate-pulse">
           Tự động quay lại phòng chờ sau vài giây...
         </p>
       </div>
@@ -220,34 +222,34 @@ export default function GamePage() {
 
   // 🎮 Main UI
   return (
-    <div className="p-6 min-h-screen flex flex-col items-center justify-center bg-gray-50">
+    <div className="p-6 min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 via-gray-50 to-white">
       {!inRoom ? (
-        <div className="space-y-4 w-full max-w-sm bg-white p-6 rounded-2xl shadow">
-          <h1 className="text-2xl font-bold text-gray-800 text-center">
+        <div className="space-y-4 w-full max-w-sm bg-gradient-to-br from-yellow-50 via-yellow-100 to-white p-6 rounded-3xl shadow-lg border border-yellow-200">
+          <h1 className="text-3xl font-bold text-yellow-800 text-center animate-pulse">
             🎮 Người Mũ Trắng
           </h1>
           <input
             placeholder="Tên của bạn"
-            className="border w-full p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="border w-full p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
           />
           <input
             placeholder="Mã phòng (nếu có)"
-            className="border w-full p-2 rounded focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="border w-full p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400"
             value={roomCode}
             onChange={(e) => setRoomCode(e.target.value)}
           />
           <div className="flex justify-center gap-4">
             <button
               onClick={createRoom}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow"
+              className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg shadow-lg transition-transform transform hover:scale-105"
             >
               Tạo phòng
             </button>
             <button
               onClick={joinRoom}
-              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow"
+              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg transition-transform transform hover:scale-105"
             >
               Vào phòng
             </button>
@@ -257,10 +259,10 @@ export default function GamePage() {
       ) : (
         <div className="w-full max-w-md space-y-4">
           {/* Room info */}
-          <Card className="bg-white shadow-md rounded-2xl border border-gray-200">
+          <Card className="bg-white shadow-xl rounded-3xl border border-gray-200">
             <CardHeader>
-              <h2 className="text-lg font-bold text-gray-800 text-center">
-                🏠 Phòng: <span className="text-blue-600">{roomCode}</span>
+              <h2 className="text-xl font-bold text-gray-800 text-center">
+                🏠 Phòng: <span className="text-yellow-600">{roomCode}</span>
               </h2>
             </CardHeader>
             <CardContent>
@@ -273,23 +275,23 @@ export default function GamePage() {
                   {players.map((p, i) => (
                     <li
                       key={p.id}
-                      className="flex justify-between items-center p-2 border border-gray-100 bg-gray-50 rounded-md"
+                      className={`flex justify-between items-center p-3 rounded-xl border ${
+                        p.status === "offline"
+                          ? "bg-red-100 border-red-300 text-red-700"
+                          : "bg-green-50 border-green-200 text-green-800"
+                      } shadow-sm transition-colors`}
                     >
-                      {/* Phần trái: tên + thứ tự */}
                       <div>
-                        <span>
-                          {p.name} {p.status === "offline" && "(Offline)"}
-                        </span>
-                        <span className="text-xs text-gray-400">
+                        <span className="font-semibold">{p.name}</span>
+                        <span className="text-xs ml-2 italic">
                           #{i + 1} {p.role === "host" ? "(Host)" : ""}
+                          {p.status === "offline" ? " (Offline)" : ""}
                         </span>
                       </div>
-
-                      {/* Phần phải: nút kick */}
                       {isHost && p.role !== "host" && (
                         <button
                           onClick={() => handleKick(p.id)}
-                          className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs"
+                          className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600 transition-colors"
                         >
                           Kick
                         </button>
@@ -311,7 +313,7 @@ export default function GamePage() {
                 setRole(null);
                 setKeyword(null);
               }}
-              className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded-lg shadow"
+              className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded-xl shadow-lg"
             >
               🚪 Thoát phòng
             </button>
@@ -319,15 +321,14 @@ export default function GamePage() {
 
           {isHost && (
             <>
-              <Card className="bg-white shadow-md rounded-2xl border border-gray-200 p-4">
+              <Card className="bg-white shadow-xl rounded-3xl border border-gray-200 p-4">
                 <h3 className="text-center text-lg font-semibold mb-2">
                   ⚙️ Cài đặt phòng
                 </h3>
-                {/* Counts */}
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   {["villagers", "spies", "whiteHats"].map((key) => (
                     <div key={key}>
-                      <label className="text-sm text-gray-600">
+                      <label className="text-sm text-gray-600 font-medium">
                         {key === "villagers"
                           ? "Dân"
                           : key === "spies"
@@ -339,48 +340,46 @@ export default function GamePage() {
                         min="0"
                         value={settings[key]}
                         onChange={(e) => handleCountChange(key, e.target.value)}
-                        className="border p-1 w-full rounded text-center"
+                        className="border p-1 w-full rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-yellow-400"
                       />
                     </div>
                   ))}
                 </div>
-                {/* Keywords */}
                 {["villager", "spy", "whiteHat"].map((key) => (
                   <input
                     key={key}
                     placeholder={`Từ khóa cho ${key}`}
-                    className="border w-full p-2 rounded mb-2"
+                    className="border w-full p-2 rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
                     value={settings.keywords[key]}
                     onChange={(e) => handleKeywordChange(key, e.target.value)}
                   />
                 ))}
               </Card>
 
-              <div className="flex justify-center gap-3">
+              <div className="flex justify-center gap-3 mt-2">
                 <button
                   onClick={startGame}
-                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg shadow"
+                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-5 py-2 rounded-xl shadow-lg transition-transform transform hover:scale-105"
                 >
                   Bắt đầu
                 </button>
                 <button
                   onClick={endGame}
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow"
+                  className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-xl shadow-lg transition-transform transform hover:scale-105"
                 >
                   Kết thúc
                 </button>
               </div>
               <RoleDisplay role={role} keyword={keyword} />
-              {/* Game data */}
-              <ul className="space-y-3 max-w-md w-full">
+              <ul className="space-y-3 max-w-md w-full mt-4">
                 {gameData &&
                   gameData.map((p, i) => (
                     <li
                       key={i}
-                      className="flex justify-between p-3 rounded bg-white/10 border border-white/20"
+                      className="flex justify-between p-3 rounded-xl bg-gradient-to-r from-yellow-50 to-yellow-100 border border-yellow-200 shadow-sm"
                     >
-                      <span>{p.name}</span>
-                      <span>
+                      <span className="font-medium">{p.name}</span>
+                      <span className="font-medium">
                         {p.role === "whiteHat"
                           ? "🕵️ Mũ trắng"
                           : p.role === "spy"
