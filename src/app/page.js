@@ -5,6 +5,7 @@ export default function Dashboard() {
     { href: "/words-random", label: "🗣️ Luyện tập từ" },
     { href: "/word-frames", label: "📚 Sổ tay từ vựng" },
     { href: "/title", label: "📝 Chủ đề và hướng tiếp cận" },
+    { href: "/game", label: "🎮 Người Mũ Trắng" },
   ];
 
   return (
