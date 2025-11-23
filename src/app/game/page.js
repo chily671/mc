@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import socket from "./socket";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import RoomsList from "@/components/RoomList";
+import RoleDisplay from "@/components/RoleDisplay";
 
 export default function GamePage() {
   const [roomCode, setRoomCode] = useState("");
@@ -11,8 +13,9 @@ export default function GamePage() {
   const [keyword, setKeyword] = useState(null);
   const [inRoom, setInRoom] = useState(false);
   const [isHost, setIsHost] = useState(false);
-  const [revealData, setRevealData] = useState(null); // 👈 lưu kết quả cuối game
-
+  const [revealData, setRevealData] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [gameData, setGameData] = useState(null);
   const [settings, setSettings] = useState({
     villagers: 3,
     spies: 1,
@@ -20,75 +23,172 @@ export default function GamePage() {
     keywords: { villager: "", spy: "", whiteHat: "" },
   });
 
-  // 🔊 Lắng nghe sự kiện từ server
+  // 🆔 Lấy hoặc tạo userId
   useEffect(() => {
-    socket.on("players_update", setPlayers);
-    socket.on("role_assigned", ({ role, keyword }) => {
+    let savedId = localStorage.getItem("userId");
+    if (!savedId) {
+      savedId = crypto.randomUUID();
+      localStorage.setItem("userId", savedId);
+    }
+    setUserId(savedId);
+  }, []);
+
+  // 🎧 Socket listeners
+  useEffect(() => {
+    if (!userId) return;
+
+    const handleRoomCreated = (code) => {
+      setRoomCode(code);
+      localStorage.setItem("roomCode", code);
+      setInRoom(true); // đã vào phòng
+      setIsHost(true); // người tạo phòng = host
+    };
+
+    const handlePlayersUpdate = (data) => {
+      setPlayers(data);
+    };
+
+    const handleRoleAssigned = ({ role, keyword }) => {
       setRole(role);
       setKeyword(keyword);
-    });
-    socket.on("settings_updated", (data) => setSettings(data));
-    socket.on("game_started", () => console.log("Game started!"));
+    };
 
-    // Khi game kết thúc, server gửi toàn bộ danh sách role + keyword
-    socket.on("game_ended", (data) => {
-      setRevealData(data); // Lưu để hiển thị toàn màn hình
+    const handleSettingsUpdated = (data) => setSettings(data);
+
+    const handleGameStarted = () => {
+      // Không xóa gameData
+      console.log("Game đã bắt đầu!");
+    };
+
+    const handleGameEnded = (data) => {
+      setRevealData(data);
       setTimeout(() => {
-        // Sau vài giây, quay lại phòng chờ
         setRevealData(null);
         setRole(null);
         setKeyword(null);
-        setInRoom(true);
+        setGameData(null);
       }, 6000);
+    };
+
+    const handleGamePlaying = (data) => setGameData(data);
+
+    const handleError = (msg) => alert(msg);
+
+    const handleJoinedSuccess = ({ roomCode, host }) => {
+      setRoomCode(roomCode);
+      localStorage.setItem("roomCode", roomCode);
+      setInRoom(true);
+      setIsHost(false);
+    };
+
+    const handleReconnectSuccess = () => {
+      setInRoom(true);
+    };
+
+    const handleConnect = () => {
+      const savedRoom = localStorage.getItem("roomCode");
+      if (savedRoom && userId) {
+        socket.emit("reconnect_room", { roomCode: savedRoom, userId });
+      }
+    };
+
+    socket.on("room_created", handleRoomCreated);
+    socket.on("players_update", handlePlayersUpdate);
+    socket.on("role_assigned", handleRoleAssigned);
+    socket.on("settings_updated", handleSettingsUpdated);
+    socket.on("game_started", handleGameStarted);
+    socket.on("game_ended", handleGameEnded);
+    socket.on("game_playing", handleGamePlaying);
+    socket.on("error_message", handleError);
+    socket.on("joined_success", handleJoinedSuccess);
+    socket.on("reconnected_success", handleReconnectSuccess);
+    socket.on("connect", handleConnect);
+    socket.on("room_deleted", (data) => {
+      alert(data.message);
+      router.push("/"); // hoặc load trang lobby
+    });
+    socket.on("kicked", (msg) => {
+      alert(msg);
+      setInRoom(false);
+      setIsHost(false);
+      setRoomCode("");
+      setPlayers([]);
+    });
+    socket.on("all_roles", (allPlayers) => {
+      if (allPlayers && allPlayers.length) {
+        setGameData(allPlayers);
+      }
     });
 
     return () => {
-      socket.off("players_update");
-      socket.off("role_assigned");
-      socket.off("settings_updated");
-      socket.off("game_started");
-      socket.off("game_ended");
+      socket.off("room_created", handleRoomCreated);
+      socket.off("players_update", handlePlayersUpdate);
+      socket.off("role_assigned", handleRoleAssigned);
+      socket.off("settings_updated", handleSettingsUpdated);
+      socket.off("game_started", handleGameStarted);
+      socket.off("game_ended", handleGameEnded);
+      socket.off("game_playing", handleGamePlaying);
+      socket.off("error_message", handleError);
+      socket.off("joined_success", handleJoinedSuccess);
+      socket.off("reconnected_success", handleReconnectSuccess);
+      socket.off("connect", handleConnect);
     };
-  }, []);
+  }, [userId]);
 
-  // 🏠 Tạo phòng
+  const handleKick = (playerId) => {
+    if (!roomCode || !isHost) return;
+    if (confirm("Bạn có chắc muốn kick người chơi này không?")) {
+      socket.emit("kick_player", {
+        roomCode,
+        hostId: userId, // đây là userId của host
+        playerId, // người bị kick
+      });
+    }
+  };
+
+  // 🏠 Room actions
   const createRoom = () => {
     if (!playerName.trim()) return alert("Nhập tên của bạn trước!");
     const code = Math.random().toString(36).substring(2, 6).toUpperCase();
-    socket.emit("create_room", { roomCode: code, hostName: playerName });
-    setRoomCode(code);
-    setInRoom(true);
-    setIsHost(true);
+    socket.emit("create_room", {
+      roomCode: code,
+      hostName: playerName,
+      userId,
+    });
+    localStorage.setItem("playerName", playerName);
   };
 
-  // 👥 Vào phòng
   const joinRoom = () => {
-    if (!playerName.trim() || !roomCode.trim()) return alert("Điền đủ thông tin!");
-    socket.emit("join_room", { roomCode, playerName });
-    setInRoom(true);
+    if (!playerName.trim() || !roomCode.trim())
+      return alert("Điền đủ thông tin!");
+    socket.emit("join_room", { roomCode, playerName, userId });
   };
 
-  // ⚙️ Cập nhật cài đặt
+  const handleJoinRoom = (code) => {
+    const name = prompt("Nhập tên của bạn:") || "Người chơi";
+    socket.emit("join_room", { roomCode: code, playerName: name, userId });
+  };
+
   const updateSettings = (newSettings) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
-    socket.emit("update_settings", { roomCode, newSettings: { ...settings, ...newSettings } });
+    const merged = {
+      ...settings,
+      ...newSettings,
+      keywords: { ...settings.keywords, ...(newSettings.keywords || {}) },
+    };
+    setSettings(merged);
+    socket.emit("update_settings", { roomCode, userId, newSettings: merged });
   };
 
-  // ▶️ Bắt đầu & 🏁 Kết thúc
-  const startGame = () => socket.emit("start_game", { roomCode });
-  const endGame = () => socket.emit("end_game", { roomCode });
+  const startGame = () => socket.emit("start_game", { roomCode, userId });
+  const endGame = () => socket.emit("end_game", { roomCode, userId });
 
-  // 🧮 Input thay đổi
-  const handleCountChange = (key, value) => {
-    const v = Math.max(0, parseInt(value) || 0);
-    updateSettings({ [key]: v });
-  };
+  const handleCountChange = (key, value) =>
+    updateSettings({ [key]: Math.max(0, parseInt(value) || 0) });
 
-  const handleKeywordChange = (key, value) => {
+  const handleKeywordChange = (key, value) =>
     updateSettings({ keywords: { ...settings.keywords, [key]: value } });
-  };
 
-  // 💥 Toàn màn hình hiển thị vai trò khi game kết thúc
+  // 💥 Game ended UI
   if (revealData) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-90 text-white flex flex-col items-center justify-center z-50 p-6">
@@ -118,15 +218,14 @@ export default function GamePage() {
     );
   }
 
-  // Giao diện chính
+  // 🎮 Main UI
   return (
     <div className="p-6 min-h-screen flex flex-col items-center justify-center bg-gray-50">
       {!inRoom ? (
         <div className="space-y-4 w-full max-w-sm bg-white p-6 rounded-2xl shadow">
           <h1 className="text-2xl font-bold text-gray-800 text-center">
-            🎮 Trò chơi Người Mũ Trắng
+            🎮 Người Mũ Trắng
           </h1>
-
           <input
             placeholder="Tên của bạn"
             className="border w-full p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -139,7 +238,6 @@ export default function GamePage() {
             value={roomCode}
             onChange={(e) => setRoomCode(e.target.value)}
           />
-
           <div className="flex justify-center gap-4">
             <button
               onClick={createRoom}
@@ -154,16 +252,17 @@ export default function GamePage() {
               Vào phòng
             </button>
           </div>
+          <RoomsList onJoin={handleJoinRoom} />
         </div>
       ) : (
         <div className="w-full max-w-md space-y-4">
+          {/* Room info */}
           <Card className="bg-white shadow-md rounded-2xl border border-gray-200">
             <CardHeader>
               <h2 className="text-lg font-bold text-gray-800 text-center">
                 🏠 Phòng: <span className="text-blue-600">{roomCode}</span>
               </h2>
             </CardHeader>
-
             <CardContent>
               {players.length === 0 ? (
                 <p className="text-center text-gray-500 italic">
@@ -176,10 +275,25 @@ export default function GamePage() {
                       key={p.id}
                       className="flex justify-between items-center p-2 border border-gray-100 bg-gray-50 rounded-md"
                     >
-                      <span className="text-gray-700">{p.name}</span>
-                      <span className="text-xs text-gray-400">
-                        #{i + 1} {p.role === "host" ? "(Host)" : ""}
-                      </span>
+                      {/* Phần trái: tên + thứ tự */}
+                      <div>
+                        <span>
+                          {p.name} {p.status === "offline" && "(Offline)"}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          #{i + 1} {p.role === "host" ? "(Host)" : ""}
+                        </span>
+                      </div>
+
+                      {/* Phần phải: nút kick */}
+                      {isHost && p.role !== "host" && (
+                        <button
+                          onClick={() => handleKick(p.id)}
+                          className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs"
+                        >
+                          Kick
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -187,86 +301,99 @@ export default function GamePage() {
             </CardContent>
           </Card>
 
-          {/* ⚙️ Chỉ host mới thấy phần này */}
+          <div className="flex justify-end mb-3">
+            <button
+              onClick={() => {
+                socket.emit("leave_room", { roomCode, userId });
+                localStorage.removeItem("roomCode");
+                setInRoom(false);
+                setIsHost(false);
+                setRole(null);
+                setKeyword(null);
+              }}
+              className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded-lg shadow"
+            >
+              🚪 Thoát phòng
+            </button>
+          </div>
+
           {isHost && (
-            <Card className="bg-white shadow-md rounded-2xl border border-gray-200 p-4">
-              <h3 className="text-center text-lg font-semibold mb-2">⚙️ Cài đặt phòng</h3>
+            <>
+              <Card className="bg-white shadow-md rounded-2xl border border-gray-200 p-4">
+                <h3 className="text-center text-lg font-semibold mb-2">
+                  ⚙️ Cài đặt phòng
+                </h3>
+                {/* Counts */}
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {["villagers", "spies", "whiteHats"].map((key) => (
+                    <div key={key}>
+                      <label className="text-sm text-gray-600">
+                        {key === "villagers"
+                          ? "Dân"
+                          : key === "spies"
+                          ? "Gián điệp"
+                          : "Mũ trắng"}
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={settings[key]}
+                        onChange={(e) => handleCountChange(key, e.target.value)}
+                        className="border p-1 w-full rounded text-center"
+                      />
+                    </div>
+                  ))}
+                </div>
+                {/* Keywords */}
+                {["villager", "spy", "whiteHat"].map((key) => (
+                  <input
+                    key={key}
+                    placeholder={`Từ khóa cho ${key}`}
+                    className="border w-full p-2 rounded mb-2"
+                    value={settings.keywords[key]}
+                    onChange={(e) => handleKeywordChange(key, e.target.value)}
+                  />
+                ))}
+              </Card>
 
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                <div>
-                  <label className="text-sm text-gray-600">Dân</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={settings.villagers}
-                    onChange={(e) => handleCountChange("villagers", e.target.value)}
-                    className="border p-1 w-full rounded text-center"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Gián điệp</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={settings.spies}
-                    onChange={(e) => handleCountChange("spies", e.target.value)}
-                    className="border p-1 w-full rounded text-center"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Mũ trắng</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={settings.whiteHats}
-                    onChange={(e) => handleCountChange("whiteHats", e.target.value)}
-                    className="border p-1 w-full rounded text-center"
-                  />
-                </div>
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={startGame}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg shadow"
+                >
+                  Bắt đầu
+                </button>
+                <button
+                  onClick={endGame}
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow"
+                >
+                  Kết thúc
+                </button>
               </div>
-
-              <div className="space-y-2">
-                <input
-                  placeholder="Từ khóa cho dân"
-                  className="border w-full p-2 rounded"
-                  value={settings.keywords.villager}
-                  onChange={(e) => handleKeywordChange("villager", e.target.value)}
-                />
-                <input
-                  placeholder="Từ khóa cho gián điệp"
-                  className="border w-full p-2 rounded"
-                  value={settings.keywords.spy}
-                  onChange={(e) => handleKeywordChange("spy", e.target.value)}
-                />
-                <input
-                  placeholder="Từ khóa cho mũ trắng"
-                  className="border w-full p-2 rounded"
-                  value={settings.keywords.whiteHat}
-                  onChange={(e) => handleKeywordChange("whiteHat", e.target.value)}
-                />
-              </div>
-            </Card>
+              <RoleDisplay role={role} keyword={keyword} />
+              {/* Game data */}
+              <ul className="space-y-3 max-w-md w-full">
+                {gameData &&
+                  gameData.map((p, i) => (
+                    <li
+                      key={i}
+                      className="flex justify-between p-3 rounded bg-white/10 border border-white/20"
+                    >
+                      <span>{p.name}</span>
+                      <span>
+                        {p.role === "whiteHat"
+                          ? "🕵️ Mũ trắng"
+                          : p.role === "spy"
+                          ? "🕶️ Gián điệp"
+                          : "👨‍🌾 Dân"}{" "}
+                        — <b>{p.keyword}</b>
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </>
           )}
 
-          {/* 🎮 Nút điều khiển */}
-          {isHost && (
-            <div className="flex justify-center gap-3">
-              <button
-                onClick={startGame}
-                className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg shadow"
-              >
-                Bắt đầu
-              </button>
-              <button
-                onClick={endGame}
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow"
-              >
-                Kết thúc
-              </button>
-            </div>
-          )}
-
-          {/* 🧩 Vai trò người chơi */}
           {role && (
             <div className="text-center mt-6">
               <p className="text-lg">
